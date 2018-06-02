@@ -1,0 +1,4 @@
+[package]
+name = "zerochecker"
+version = "0.1.0"
+authors = ["Evgeny Stepanischev <imbolk@gmail.com>"]
