@@ -1,61 +1,42 @@
-use std::io;
+use std::env;
+use std::fs::File;
 use std::io::prelude::Read;
+use std::io;
 
-fn read_chunk<R: Read> (reader: R, size: u64) -> Vec<u8> {
-	let mut buf = vec![];
-	let _size = reader.take(size).read_to_end(&mut buf);
-	buf
+#[derive(Copy, Clone)]
+enum CheckResult {
+    Zero = 0,
+    Empty = 1,
+    NotZero = 2,
+    Error = 3,
 }
 
-fn check_not_zeroed(buffer: Vec<u8>) -> bool {
-	for byte in buffer.iter() {
-		if *byte != 0 {
-			return true
-		}
-	}
+fn check_file_zeroed(filename: &str) -> Result<CheckResult, io::Error> {
+    let mut f = File::open(filename)?;
+    let mut res = CheckResult::Empty;
+    let mut chunk = [0; 8192];
 
-	false
+    loop {
+        let chunk_len = f.read(&mut chunk[..])?;
+        if chunk_len == 0 {
+            return Ok(res);
+        }
+
+        res = CheckResult::Zero;
+
+        if chunk[0..chunk_len].iter().any(|&i| i != 0) {
+            return Ok(CheckResult::NotZero);
+        }
+    }
 }
-
-fn check_file_zeroed(filename: String) -> Result<bool, io::Error> {
-	use std::fs::File;
-
-	let mut f = File::open(filename)?;
-	let mut filesize = 0;
-
-	loop {
-		let chunk = read_chunk(&mut f, 8192);
-		let chunk_len = chunk.len();
-		filesize += chunk_len;
-
-		if chunk_len == 0 {
-			return Ok(filesize > 0)
-		}
-
-		if check_not_zeroed(chunk) {
-			return Ok(false)
-		}
-	}	
-}
-
-// 2 - error
-// 1 - not zeroed
-// 0 - zeroed
 
 fn run() -> i32 {
-	use std::env;
-
-	match env::args().nth(1) {
-		Some(filename) => {
-			match check_file_zeroed(filename) {
-				Ok(zeroed) => if zeroed {0} else {1},
-				Err(_) => 2
-			}
-		}
-		None => 2
-	}
+    env::args()
+        .nth(1)
+        .map(|filename| check_file_zeroed(&filename).unwrap_or_else(|_| CheckResult::Error) as i32)
+        .unwrap_or_else(|| CheckResult::Error as i32)
 }
 
 fn main() {
-	std::process::exit(run());
+    std::process::exit(run());
 }
